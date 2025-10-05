@@ -1,0 +1,41 @@
+{
+  "development": {
+    "backend": {
+      "ip": "192.168.8.163",
+      "port": 3001,
+      "baseUrl": "http://192.168.8.163:3001"
+    },
+    "database": {
+      "mongodb": "mongodb://localhost:27017/metermate"
+    },
+    "jwt": {
+      "secret": "fce832cd907fc4f134f1cd1b8d34d54096cd27fb4978ccb0c6f2e73fcf90dd2466fdf727f9270d5ee4dadaab4b032e683ec2297d127e0e16bde5757ae4963f3a"
+    }
+  },
+  "production": {
+    "backend": {
+      "ip": "your-production-ip",
+      "port": 3001,
+      "baseUrl": "https://your-production-domain.com"
+    },
+    "database": {
+      "mongodb": "mongodb://your-production-db:27017/metermate"
+    },
+    "jwt": {
+      "secret": "your-production-jwt-secret"
+    }
+  },
+  "staging": {
+    "backend": {
+      "ip": "your-staging-ip",
+      "port": 3001,
+      "baseUrl": "https://your-staging-domain.com"
+    },
+    "database": {
+      "mongodb": "mongodb://your-staging-db:27017/metermate"
+    },
+    "jwt": {
+      "secret": "your-staging-jwt-secret"
+    }
+  }
+}

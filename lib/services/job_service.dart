@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'config_service.dart';
 
 class JobService {
-  static const String _baseIp = '192.168.8.163';
-  static const String _baseUrl = 'http://$_baseIp:3001/api/jobs';
+  static String get _baseUrl => ConfigService.jobsUrl;
 
   Future<String?> _getToken() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();

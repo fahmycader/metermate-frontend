@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'config_service.dart';
 
 class AuthService {
-  static const String _baseIp = '192.168.8.163';
-  static const String _baseUrl = 'http://$_baseIp:3001/api/auth'; 
+  static String get _baseUrl => ConfigService.authUrl; 
 
   // For physical device, replace 10.0.2.2 with your computer's IP address
 

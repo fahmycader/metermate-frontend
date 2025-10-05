@@ -5,10 +5,10 @@ import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'config_service.dart';
 
 class LocationService {
-  static const String _baseIp = '192.168.8.163';
-  static const String _baseUrl = 'http://$_baseIp:3001/api/jobs';
+  static String get _baseUrl => ConfigService.jobsUrl;
   
   StreamSubscription<Position>? _positionStream;
   Position? _currentPosition;

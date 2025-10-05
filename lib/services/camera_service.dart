@@ -4,10 +4,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'config_service.dart';
 
 class CameraService {
-  static const String _baseIp = '192.168.8.163';
-  static const String _baseUrl = 'http://$_baseIp:3001/api/upload';
+  static String get _baseUrl => ConfigService.uploadUrl;
   
   final ImagePicker _picker = ImagePicker();
 

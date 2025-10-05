@@ -5,8 +5,11 @@ import 'package:metermate_frontend/screens/signup_screen.dart';
 import 'package:metermate_frontend/screens/home_screen.dart';
 import 'package:metermate_frontend/screens/jobs_screen.dart';
 import 'package:metermate_frontend/screens/todays_jobs_screen.dart';
+import 'package:metermate_frontend/services/config_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await ConfigService.initialize();
   runApp(const MyApp());
 }
 
