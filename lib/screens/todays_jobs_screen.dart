@@ -53,7 +53,26 @@ class _TodaysJobsScreenState extends State<TodaysJobsScreen> {
 
   Future<void> _loadTodaysJobs() async {
     setState(() => _isLoading = true);
-    final result = await _jobService.getTodaysJobs();
+    
+    // Get current location for geographical sorting
+    Position? currentPosition;
+    try {
+      bool hasPermission = await _locationService.requestLocationPermission();
+      if (hasPermission) {
+        currentPosition = await _locationService.getCurrentLocation();
+      }
+    } catch (e) {
+      print('Error getting location: $e');
+    }
+    
+    // Use geographical sorting if location is available
+    final result = currentPosition != null 
+        ? await _jobService.getTodaysJobsGeo(
+            userLatitude: currentPosition.latitude,
+            userLongitude: currentPosition.longitude,
+          )
+        : await _jobService.getTodaysJobs();
+        
     if (result['success']) {
       setState(() {
         _jobs = result['data']['jobs'] ?? [];
@@ -429,6 +448,19 @@ class _TodaysJobsScreenState extends State<TodaysJobsScreen> {
                     color: Colors.grey[600],
                   ),
                 ),
+                if (job['distanceFromUser'] != null) ...[
+                  const SizedBox(width: 16),
+                  const FaIcon(FontAwesomeIcons.locationDot, size: 16, color: Colors.blue),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${job['distanceFromUser'].toStringAsFixed(1)} km',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.blue[600],
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
               ],
             ),
             if (job['notes'] != null && job['notes'].isNotEmpty) ...[
@@ -468,9 +500,9 @@ class _TodaysJobsScreenState extends State<TodaysJobsScreen> {
                 if (status == 'in_progress') ...[
                   Expanded(
                     child: ElevatedButton.icon(
-                      onPressed: () => _completeJobWithLocation(job),
+                      onPressed: () => _navigateToMeterReading(job),
                       icon: const FaIcon(FontAwesomeIcons.clipboardCheck, size: 16),
-                      label: const Text('Submit Readings'),
+                      label: const Text('Take Reading'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.orange[700],
                         foregroundColor: Colors.white,
@@ -598,60 +630,54 @@ class _TodaysJobsScreenState extends State<TodaysJobsScreen> {
     }
   }
 
-  Future<void> _completeJobWithLocation(Map<String, dynamic> job) async {
+  Future<void> _navigateToMeterReading(Map<String, dynamic> job) async {
     try {
-      // Get current location
-      Position? currentPosition = await _locationService.getCurrentLocation();
-      if (currentPosition == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Unable to get current location'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
-      }
-
       // Check if user is within 3 meters of destination
-      double destLat = job['address']['latitude'] ?? 0.0;
-      double destLng = job['address']['longitude'] ?? 0.0;
-      
-      if (destLat == 0.0 || destLng == 0.0) {
-        // If no destination coordinates, show meter reading dialog directly
-        _showMeterReadingDialogWithPhotos(job, currentPosition);
-        return;
-      }
-
-      double distanceInMeters = Geolocator.distanceBetween(
-        currentPosition.latitude,
-        currentPosition.longitude,
-        destLat,
-        destLng,
-      );
-
-      if (distanceInMeters > 3.0) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('You must be within 3 meters of the destination to complete this job. Current distance: ${distanceInMeters.toStringAsFixed(1)}m'),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 5),
-            ),
+      Position? currentPosition = await _locationService.getCurrentLocation();
+      if (currentPosition != null) {
+        double destLat = job['address']['latitude'] ?? 0.0;
+        double destLng = job['address']['longitude'] ?? 0.0;
+        
+        if (destLat != 0.0 && destLng != 0.0) {
+          double distanceInMeters = Geolocator.distanceBetween(
+            currentPosition.latitude,
+            currentPosition.longitude,
+            destLat,
+            destLng,
           );
+
+          if (distanceInMeters > 3.0) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('You must be within 3 meters of the destination to take readings. Current distance: ${distanceInMeters.toStringAsFixed(1)}m'),
+                  backgroundColor: Colors.red,
+                  duration: const Duration(seconds: 5),
+                ),
+              );
+            }
+            return;
+          }
         }
-        return;
       }
 
-      // Show meter reading dialog with photo capture
-      _showMeterReadingDialogWithPhotos(job, currentPosition);
+      // Navigate to meter reading screen
+      final result = await Navigator.pushNamed(
+        context,
+        '/meter-reading',
+        arguments: job,
+      );
+      
+      if (result == true) {
+        // Refresh the jobs list if meter reading was successful
+        _loadTodaysJobs();
+      }
     } catch (e) {
-      print('Error completing job: $e');
+      print('Error navigating to meter reading: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Error completing job'),
+            content: Text('Error accessing meter reading'),
             backgroundColor: Colors.red,
           ),
         );

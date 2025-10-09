@@ -5,6 +5,7 @@ import 'package:metermate_frontend/screens/signup_screen.dart';
 import 'package:metermate_frontend/screens/home_screen.dart';
 import 'package:metermate_frontend/screens/jobs_screen.dart';
 import 'package:metermate_frontend/screens/todays_jobs_screen.dart';
+import 'package:metermate_frontend/screens/meter_reading_screen.dart';
 import 'package:metermate_frontend/services/config_service.dart';
 
 void main() async {
@@ -31,6 +32,10 @@ class MyApp extends StatelessWidget {
         '/home': (context) => const HomeScreen(),
         '/jobs': (context) => const JobsScreen(),
         '/todays-jobs': (context) => const TodaysJobsScreen(),
+        '/meter-reading': (context) {
+          final job = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
+          return MeterReadingScreen(job: job);
+        },
       },
       debugShowCheckedModeBanner: false,
     );

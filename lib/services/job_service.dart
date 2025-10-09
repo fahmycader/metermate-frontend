@@ -108,6 +108,43 @@ class JobService {
     }
   }
 
+  Future<Map<String, dynamic>> getTodaysJobsGeo({String? status, String? jobType, String? priority, double? userLatitude, double? userLongitude}) async {
+    try {
+      String? token = await _getToken();
+      if (token == null) {
+        return {'success': false, 'message': 'No token found'};
+      }
+
+      // Build query parameters
+      Map<String, String> queryParams = {};
+      if (status != null && status.isNotEmpty) queryParams['status'] = status;
+      if (jobType != null && jobType.isNotEmpty) queryParams['jobType'] = jobType;
+      if (priority != null && priority.isNotEmpty) queryParams['priority'] = priority;
+      if (userLatitude != null) queryParams['userLatitude'] = userLatitude.toString();
+      if (userLongitude != null) queryParams['userLongitude'] = userLongitude.toString();
+
+      final uri = Uri.parse('$_baseUrl/today-geo').replace(queryParameters: queryParams);
+
+      final response = await http.get(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      final responseData = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        return {'success': true, 'data': responseData};
+      } else {
+        return {'success': false, 'message': responseData['message'] ?? 'Failed to get today\'s jobs geo'};
+      }
+    } catch (e) {
+      print('Get Today\'s Jobs Geo Error: $e');
+      return {'success': false, 'message': 'Could not connect to the server.'};
+    }
+  }
+
   Future<Map<String, dynamic>> getMyJobCount({String? status, String? jobType, String? priority, String? dateRange}) async {
     try {
       String? token = await _getToken();
@@ -200,6 +237,34 @@ class JobService {
       }
     } catch (e) {
       print('Submit Reading Error: $e');
+      return {'success': false, 'message': 'Could not connect to the server.'};
+    }
+  }
+
+  Future<Map<String, dynamic>> completeJob(String jobId, Map<String, dynamic> completionData) async {
+    try {
+      String? token = await _getToken();
+      if (token == null) {
+        return {'success': false, 'message': 'No token found'};
+      }
+
+      final response = await http.put(
+        Uri.parse('$_baseUrl/$jobId/complete'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(completionData),
+      );
+
+      final responseData = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        return {'success': true, 'data': responseData};
+      } else {
+        return {'success': false, 'message': responseData['message'] ?? 'Failed to complete job'};
+      }
+    } catch (e) {
+      print('Complete Job Error: $e');
       return {'success': false, 'message': 'Could not connect to the server.'};
     }
   }
