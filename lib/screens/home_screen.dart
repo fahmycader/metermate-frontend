@@ -161,10 +161,31 @@ class _HomeScreenState extends State<HomeScreen> {
                 _buildPerformanceCard(weeklyPerformance),
                 const SizedBox(height: 24),
                 _buildActionList(),
+                const SizedBox(height: 24),
+                _buildLogoutButton(),
+                const SizedBox(height: 16),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildLogoutButton() {
+    return _buildCard(
+      child: ListTile(
+        leading: FaIcon(FontAwesomeIcons.arrowRightFromBracket, color: Colors.red[700]),
+        title: Text(
+          'Logout',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.red[700],
+          ),
+        ),
+        subtitle: const Text('Sign out of your account'),
+        trailing: Icon(Icons.chevron_right, color: Colors.red[700]),
+        onTap: _handleLogout,
       ),
     );
   }
@@ -208,11 +229,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-          TextButton.icon(
-            onPressed: _handleLogout,
-            icon: const FaIcon(FontAwesomeIcons.arrowRightFromBracket, color: Colors.red, size: 16),
-            label: const Text('Logout', style: TextStyle(color: Colors.red)),
-          )
         ],
       ),
     );
@@ -384,19 +400,28 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: FontAwesomeIcons.gears,
             title: 'App Settings',
             subtitle: 'Customize your app preferences',
-            iconColor: Colors.grey),
+            iconColor: Colors.grey,
+            onTap: () {
+              Navigator.of(context).pushNamed('/settings');
+            }),
         const SizedBox(height: 12),
         _buildActionItem(
             icon: FontAwesomeIcons.solidComment,
             title: 'Messages',
             subtitle: 'Company updates and notifications',
-            iconColor: Colors.green),
+            iconColor: Colors.green,
+            onTap: () {
+              Navigator.of(context).pushNamed('/messages');
+            }),
         const SizedBox(height: 12),
         _buildActionItem(
             icon: FontAwesomeIcons.solidAddressBook,
             title: 'Contacts',
             subtitle: 'Important contact information',
-            iconColor: Colors.orange),
+            iconColor: Colors.orange,
+            onTap: () {
+              Navigator.of(context).pushNamed('/contacts');
+            }),
       ],
     );
   }

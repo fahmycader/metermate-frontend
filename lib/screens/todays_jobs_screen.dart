@@ -72,10 +72,58 @@ class _TodaysJobsScreenState extends State<TodaysJobsScreen> {
             userLongitude: currentPosition.longitude,
           )
         : await _jobService.getTodaysJobs();
-        
+
     if (result['success']) {
+      // Sort jobs by sequence number (1, 2, 3, etc.) for easy route following
+      List<dynamic> jobs = List<dynamic>.from(result['data']['jobs'] ?? []);
+      if (jobs.isNotEmpty) {
+        jobs.sort((a, b) {
+          // Sort by sequenceNumber first (if available)
+          final seqA = a['sequenceNumber'];
+          final seqB = b['sequenceNumber'];
+          
+          if (seqA != null && seqB != null) {
+            return (seqA as num).compareTo(seqB as num);
+          } else if (seqA != null) {
+            return -1; // Jobs with sequence numbers come first
+          } else if (seqB != null) {
+            return 1;
+          }
+          
+          // If no sequence numbers, fall back to distance-based sorting
+          double distA = 0.0;
+          double distB = 0.0;
+          if (a['distanceFromUser'] is num && b['distanceFromUser'] is num) {
+            distA = (a['distanceFromUser'] as num).toDouble();
+            distB = (b['distanceFromUser'] as num).toDouble();
+          } else if (currentPosition != null) {
+            final aLat = (a['address']?['latitude'] ?? 0.0) as num;
+            final aLng = (a['address']?['longitude'] ?? 0.0) as num;
+            final bLat = (b['address']?['latitude'] ?? 0.0) as num;
+            final bLng = (b['address']?['longitude'] ?? 0.0) as num;
+            if (aLat != 0.0 && aLng != 0.0) {
+              distA = Geolocator.distanceBetween(
+                currentPosition.latitude,
+                currentPosition.longitude,
+                aLat.toDouble(),
+                aLng.toDouble(),
+              );
+            }
+            if (bLat != 0.0 && bLng != 0.0) {
+              distB = Geolocator.distanceBetween(
+                currentPosition.latitude,
+                currentPosition.longitude,
+                bLat.toDouble(),
+                bLng.toDouble(),
+              );
+            }
+          }
+          return distA.compareTo(distB);
+        });
+      }
+
       setState(() {
-        _jobs = result['data']['jobs'] ?? [];
+        _jobs = jobs;
         _jobCounts = result['data']['counts'] ?? {};
         _isLoading = false;
       });
@@ -348,6 +396,28 @@ class _TodaysJobsScreenState extends State<TodaysJobsScreen> {
           children: [
             Row(
               children: [
+                // Sequence number badge
+                if (job['sequenceNumber'] != null) ...[
+                  Container(
+                    width: 50,
+                    height: 50,
+                    decoration: BoxDecoration(
+                      color: Colors.blue[700],
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        '${job['sequenceNumber']}',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                ],
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -632,7 +702,7 @@ class _TodaysJobsScreenState extends State<TodaysJobsScreen> {
 
   Future<void> _navigateToMeterReading(Map<String, dynamic> job) async {
     try {
-      // Check if user is within 3 meters of destination
+      // Check if user is within 10 meters of destination
       Position? currentPosition = await _locationService.getCurrentLocation();
       if (currentPosition != null) {
         double destLat = job['address']['latitude'] ?? 0.0;
@@ -646,11 +716,11 @@ class _TodaysJobsScreenState extends State<TodaysJobsScreen> {
             destLng,
           );
 
-          if (distanceInMeters > 3.0) {
+          if (distanceInMeters > 10.0) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('You must be within 3 meters of the destination to take readings. Current distance: ${distanceInMeters.toStringAsFixed(1)}m'),
+                  content: Text('You must be within 10 meters of the destination to take readings. Current distance: ${distanceInMeters.toStringAsFixed(1)}m'),
                   backgroundColor: Colors.red,
                   duration: const Duration(seconds: 5),
                 ),

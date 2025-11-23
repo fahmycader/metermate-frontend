@@ -28,25 +28,29 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
   final Map<String, TextEditingController> _controllers = {};
   final Map<String, File?> _photos = {};
   
-  String _customerRead = 'Yes';
+  String? _customerRead;
   bool _isSubmitting = false;
   Position? _currentPosition;
   Map<String, dynamic>? _locationValidation;
   bool _isValidatingLocation = false;
+  bool _risk = false;
+  bool _mInspec = false;
+  int _numRegisters = 1;
 
   final List<String> _customerReadOptions = [
-    'Yes',
-    'No',
+    'First failed visit',
     'No access',
-    'Refuse access',
-    'Failed first visit',
+    'Refuse access by customer',
+    'Incorrect address',
+    'Vacent property',
+    'Unable to read',
+    'Unable to locate meter on site',
+    'Faulty meter',
     'Meter blocked',
     'Unable to locate the meter',
     'Unmanned',
     'Demolished',
     'Unsafe premises',
-    'Meter inspected',
-    'Risk assessment'
   ];
 
   @override
@@ -132,16 +136,32 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
   }
 
   void _initializeControllers() {
-    _controllers['sup'] = TextEditingController();
-    _controllers['jt'] = TextEditingController();
-    _controllers['cust'] = TextEditingController();
-    _controllers['address1'] = TextEditingController(text: widget.job['address']?['street'] ?? '');
+    // Pre-fill from job data (read-only fields)
+    final jobAddress = widget.job['address'] ?? {};
+    final street = jobAddress['street'] ?? '';
+    final city = jobAddress['city'] ?? '';
+    final state = jobAddress['state'] ?? '';
+    final zipCode = jobAddress['zipCode'] ?? '';
+    final addressParts = [street, city, state, zipCode].where((part) => part.isNotEmpty).toList();
+    final addressString = addressParts.join(', ');
+    
+    _controllers['sup'] = TextEditingController(text: widget.job['sup'] ?? '');
+    _controllers['jt'] = TextEditingController(text: widget.job['jt'] ?? '');
+    _controllers['cust'] = TextEditingController(text: widget.job['cust'] ?? '');
+    _controllers['address1'] = TextEditingController(text: addressString);
     _controllers['address2'] = TextEditingController();
     _controllers['address3'] = TextEditingController();
     _controllers['noR'] = TextEditingController();
     _controllers['rc'] = TextEditingController();
-    _controllers['makeOfMeter'] = TextEditingController();
-    _controllers['model'] = TextEditingController();
+    // Pre-fill meter information from job data (read-only)
+    // Access meter fields from job data - these are set by admin when creating job
+    final meterMake = widget.job['meterMake']?.toString().trim() ?? '';
+    final meterModel = widget.job['meterModel']?.toString().trim() ?? '';
+    final meterSerialNumber = widget.job['meterSerialNumber']?.toString().trim() ?? '';
+    
+    _controllers['makeOfMeter'] = TextEditingController(text: meterMake);
+    _controllers['model'] = TextEditingController(text: meterModel);
+    _controllers['meterSerialNumber'] = TextEditingController(text: meterSerialNumber);
     _controllers['regID1'] = TextEditingController();
     _controllers['reg1'] = TextEditingController();
     _controllers['notes'] = TextEditingController();
@@ -336,17 +356,17 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
                         ],
                       ),
                       const SizedBox(height: 16),
-                      _buildTextField('Sup', 'sup', Icons.badge),
+                      _buildTextField('Supplier (Sup)', 'sup', Icons.badge, readOnly: true),
                       const SizedBox(height: 12),
-                      _buildTextField('JT', 'jt', Icons.work_outline),
+                      _buildTextField('Job Title (JT)', 'jt', Icons.work_outline, readOnly: true),
                       const SizedBox(height: 12),
-                      _buildTextField('Cust', 'cust', Icons.person_outline),
+                      _buildTextField('Customer (Cust)', 'cust', Icons.person_outline, readOnly: true),
                       const SizedBox(height: 12),
-                      _buildTextField('Address 1', 'address1', Icons.location_on),
+                      _buildTextField('Address', 'address1', Icons.location_on, readOnly: true),
                       const SizedBox(height: 12),
-                      _buildTextField('Address 2', 'address2', Icons.location_city),
+                      _buildTextField('Address 2', 'address2', Icons.location_city, required: false),
                       const SizedBox(height: 12),
-                      _buildTextField('Address 3', 'address3', Icons.location_city),
+                      _buildTextField('Address 3', 'address3', Icons.location_city, required: false),
                     ],
                   ),
                 ),
@@ -362,26 +382,14 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Icon(Icons.check_circle, color: Colors.orange[700]),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Customer Read Status',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.orange[700],
-                            ),
-                          ),
-                        ],
-                      ),
+                      
                       const SizedBox(height: 16),
                       DropdownButtonFormField<String>(
                         value: _customerRead,
                         decoration: const InputDecoration(
-                          labelText: 'Customer Read?',
+                          labelText: 'No Access Status?',
                           border: OutlineInputBorder(),
+                          hintText: 'Select status',
                         ),
                         items: _customerReadOptions.map((String option) {
                           return DropdownMenuItem<String>(
@@ -391,15 +399,34 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
                         }).toList(),
                         onChanged: (String? newValue) {
                           setState(() {
-                            _customerRead = newValue!;
+                            _customerRead = newValue;
                           });
                         },
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Please select customer read status';
-                          }
-                          return null;
-                        },
+                        validator: null,
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: CheckboxListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: const Text('Risk?'),
+                              value: _risk,
+                              onChanged: (v) => setState(() => _risk = v ?? false),
+                              controlAffinity: ListTileControlAffinity.leading,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: CheckboxListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: const Text('MInspec?'),
+                              value: _mInspec,
+                              onChanged: (v) => setState(() => _mInspec = v ?? false),
+                              controlAffinity: ListTileControlAffinity.leading,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -408,7 +435,7 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
               
               const SizedBox(height: 16),
               
-              // Meter Information Card
+              // Meter Information Card - Always show meter info (pre-filled), but hide registers if no access
               Card(
                 elevation: 2,
                 child: Padding(
@@ -431,17 +458,74 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
                         ],
                       ),
                       const SizedBox(height: 16),
-                      _buildTextField('NoR', 'noR', Icons.numbers),
+                      // Meter Serial Number (pre-filled, read-only) - Display first for verification
+                      _buildTextField('Meter Serial Number', 'meterSerialNumber', Icons.qr_code_scanner, readOnly: true),
                       const SizedBox(height: 12),
-                      _buildTextField('RC', 'rc', Icons.code),
+                      // Meter Make and Model (pre-filled, read-only)
+                      _buildTextField('Make of Meter', 'makeOfMeter', Icons.build, readOnly: true),
                       const SizedBox(height: 12),
-                      _buildTextField('Make of Meter', 'makeOfMeter', Icons.build),
-                      const SizedBox(height: 12),
-                      _buildTextField('Model', 'model', Icons.model_training),
-                      const SizedBox(height: 12),
-                      _buildTextField('Reg ID1', 'regID1', Icons.confirmation_number),
-                      const SizedBox(height: 12),
-                      _buildTextField('Reg 1', 'reg1', Icons.confirmation_number),
+                      _buildTextField('Model', 'model', Icons.model_training, readOnly: true),
+                      // Only show register fields if no access status is not selected
+                      if (_customerRead == null) ...[
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<int>(
+                          value: _numRegisters,
+                          decoration: const InputDecoration(
+                            labelText: 'NoR (Number of Registers)',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: List.generate(8, (i) => i + 1).map((n) => DropdownMenuItem<int>(
+                            value: n,
+                            child: Text(n.toString()),
+                          )).toList(),
+                          onChanged: (v) {
+                            setState(() {
+                              _numRegisters = v ?? 1;
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        // Dynamic Register IDs and Values
+                        ...List.generate(_numRegisters, (index) {
+                          final idx = index + 1;
+                          _controllers['regID$idx'] ??= TextEditingController();
+                          _controllers['reg$idx'] ??= TextEditingController();
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildTextField('Reg ID$idx', 'regID$idx', Icons.confirmation_number, required: _mInspec),
+                              const SizedBox(height: 8),
+                              _buildTextField('Reg $idx', 'reg$idx', Icons.numbers, required: _mInspec),
+                              const SizedBox(height: 12),
+                            ],
+                          );
+                        }),
+                      ] else ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.orange[50],
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.orange[200]!),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.info_outline, color: Colors.orange[700], size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Register fields are disabled when "No Access Status" is selected',
+                                  style: TextStyle(
+                                    color: Colors.orange[800],
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -449,7 +533,7 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
               
               const SizedBox(height: 16),
               
-              // Photos Card
+              // Photos Card - Always required, especially when no access status is selected
               Card(
                 elevation: 2,
                 child: Padding(
@@ -462,15 +546,44 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
                           Icon(Icons.camera_alt, color: Colors.red[700]),
                           const SizedBox(width: 8),
                           Text(
-                            'Meter Photos',
+                            'Photos',
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
                               color: Colors.red[700],
                             ),
                           ),
+                          if (_customerRead != null) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.red[100],
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text(
+                                'Required',
+                                style: TextStyle(
+                                  color: Colors.red,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
+                      if (_customerRead != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          'Photo is required when "No Access Status" is selected',
+                          style: TextStyle(
+                            color: Colors.red[700],
+                            fontSize: 14,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 16),
                       Row(
                         children: [
@@ -560,10 +673,14 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
                       : _locationValidation?['canProceed'] != true
                           ? (_locationValidation?['error'] != null
                               ? 'Location Error - Use Manual Input'
-                              : 'You are ${_locationValidation?['distance']?.toStringAsFixed(0) ?? '0'}m away from location. Please move closer and try again.')
-                          : 'Submit Meter Reading'),
+                              : 'You are ${_locationValidation?['distance']?.toStringAsFixed(0) ?? '0'}m away. Please move within 10m to close the job.')
+                          : _customerRead != null
+                              ? 'Submit No Access Report'
+                              : 'Submit Meter Reading'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _locationValidation?['canProceed'] == true ? Colors.green[700] : Colors.grey[400],
+                    backgroundColor: _locationValidation?['canProceed'] == true 
+                        ? Colors.green[700] 
+                        : Colors.grey[400],
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
@@ -599,20 +716,33 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
     );
   }
 
-  Widget _buildTextField(String label, String key, IconData icon) {
+  Widget _buildTextField(String label, String key, IconData icon, {bool required = true, bool readOnly = false, bool? enabled}) {
+    // Determine if field should be required based on conditions:
+    // - If readOnly, never required (pre-filled)
+    // - If required parameter is false, never required
+    // - If customerRead is selected (no access), not required
+    // - If MInspec is checked, then required (only for register fields)
+    final bool isRequired = !readOnly && required && _mInspec && _customerRead == null;
+    final bool isEnabled = enabled ?? (!readOnly);
+    
     return TextFormField(
       controller: _controllers[key],
+      readOnly: readOnly || !isEnabled,
+      enabled: isEnabled && !readOnly,
       decoration: InputDecoration(
         labelText: label,
         border: const OutlineInputBorder(),
         prefixIcon: Icon(icon),
+        filled: readOnly || !isEnabled,
+        fillColor: (readOnly || !isEnabled) ? Colors.grey[200] : null,
+        hintText: readOnly ? 'Pre-filled from job' : (!isEnabled ? 'Disabled when No Access Status is selected' : null),
       ),
-      validator: (value) {
+      validator: isRequired ? (value) {
         if (value == null || value.isEmpty) {
           return 'Please enter $label';
         }
         return null;
-      },
+      } : null,
     );
   }
 
@@ -764,20 +894,21 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
   }
 
   Future<void> _submitMeterReading() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
-    // Check location validation
+    // Always check location validation - must be within 10m of address location
+    // This applies even when "No Access Status" is selected
     if (_locationValidation?['canProceed'] != true) {
       if (mounted) {
         showDialog(
           context: context,
           builder: (BuildContext context) {
             return AlertDialog(
-              title: const Text('Location Validation'),
+              title: const Text('Location Validation Required'),
               content: Text(
-                _locationValidation?['message'] ?? 'You must be within 300 meters to complete this job.',
+                _locationValidation?['error'] != null
+                    ? _locationValidation!['error']
+                    : _locationValidation?['distance'] != null
+                        ? 'You are ${_locationValidation!['distance'].toStringAsFixed(0)}m away from the job location. Please move within 10m to close the job.'
+                        : 'You must be within 10 meters of the job location to complete this job.',
               ),
               actions: [
                 TextButton(
@@ -790,6 +921,26 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
         );
       }
       return;
+    }
+
+    // If no access status is selected, only photo is required (location already validated above)
+    if (_customerRead != null) {
+      if (_photos['meter'] == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please take a photo when "No Access Status" is selected'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+    } else {
+      // Normal validation for regular meter reading
+      if (!_formKey.currentState!.validate()) {
+        return;
+      }
     }
 
     setState(() => _isSubmitting = true);
@@ -815,17 +966,17 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
         'jt': _controllers['jt']!.text,
         'cust': _controllers['cust']!.text,
         'address1': _controllers['address1']!.text,
-        'address2': _controllers['address2']!.text,
-        'address3': _controllers['address3']!.text,
-        'customerRead': _customerRead,
-        'noR': _controllers['noR']!.text,
-        'rc': _controllers['rc']!.text,
-        'makeOfMeter': _controllers['makeOfMeter']!.text,
-        'model': _controllers['model']!.text,
-        'regID1': _controllers['regID1']!.text,
-        'reg1': _controllers['reg1']!.text,
+        'address2': _controllers['address2']?.text, // Made optional
+        'address3': _controllers['address3']?.text, // Made optional
+        'customerRead': _customerRead, // Made optional
+        'risk': _risk, // New field
+        'mInspec': _mInspec, // New field
+        'numRegisters': _numRegisters, // New field
+        'makeOfMeter': _customerRead == null ? _controllers['makeOfMeter']!.text : '',
+        'model': _customerRead == null ? _controllers['model']!.text : '',
+        'meterSerialNumber': _customerRead == null ? _controllers['meterSerialNumber']!.text : '',
         'photos': photoUrls,
-        'notes': _controllers['notes']!.text,
+        'notes': _controllers['notes']?.text ?? '',
       };
 
       // Add location if available
@@ -840,6 +991,23 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
       final JobService jobService = JobService();
       
       // Prepare job completion data with location and distance
+      // Build registers arrays
+      final List<String> regIds = [];
+      final List<num> regVals = [];
+      for (int i = 1; i <= _numRegisters; i++) {
+        final regId = _controllers['regID$i']?.text?.trim();
+        final regVal = _controllers['reg$i']?.text?.trim();
+        if (regId != null && regId.isNotEmpty) {
+          regIds.add(regId);
+        }
+        if (regVal != null && regVal.isNotEmpty) {
+          final val = num.tryParse(regVal);
+          if (val != null) {
+            regVals.add(val);
+          }
+        }
+      }
+
       Map<String, dynamic> jobCompletionData = {
         'status': 'completed',
         'meterReadings': readingData,
@@ -849,6 +1017,11 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
           'longitude': _currentPosition!.longitude,
         } : null,
         'notes': _controllers['notes']!.text,
+        'risk': _risk,
+        'mInspec': _mInspec,
+        'numRegisters': _numRegisters,
+        'registerIds': regIds,
+        'registerValues': regVals,
       };
 
       // Add distance calculation if we have location validation data

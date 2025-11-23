@@ -2,7 +2,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 
 class LocationValidationService {
-  static const double REQUIRED_RADIUS_METERS = 300.0;
+  static const double REQUIRED_RADIUS_METERS = 10.0;
   
   /// Get job coordinates from multiple possible sources
   static Future<Map<String, dynamic>?> getJobCoordinates(Map<String, dynamic> job) async {

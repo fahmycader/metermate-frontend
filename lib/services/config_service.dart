@@ -16,9 +16,9 @@ class ConfigService {
       _config = {
         'development': {
           'backend': {
-            'ip': '192.168.8.163',
+            'ip': '192.168.1.99',
             'port': 3001,
-            'baseUrl': 'http://192.168.8.163:3001'
+            'baseUrl': 'http://192.168.1.99:3001'
           }
         }
       };
@@ -30,7 +30,7 @@ class ConfigService {
   }
 
   static String get backendIp {
-    return _config?[_environment]?['backend']?['ip'] ?? '192.168.8.163';
+    return _config?[_environment]?['backend']?['ip'] ?? '192.168.1.99';
   }
 
   static int get backendPort {
@@ -38,7 +38,7 @@ class ConfigService {
   }
 
   static String get baseUrl {
-    return _config?[_environment]?['backend']?['baseUrl'] ?? 'http://192.168.8.163:3001';
+    return _config?[_environment]?['backend']?['baseUrl'] ?? 'http://192.168.1.99:3001';
   }
 
   static String get apiUrl {
@@ -51,6 +51,10 @@ class ConfigService {
 
   static String get jobsUrl {
     return '$baseUrl/api/jobs';
+  }
+
+  static String get messagesUrl {
+    return '$baseUrl/api/messages';
   }
 
   static String get uploadUrl {
