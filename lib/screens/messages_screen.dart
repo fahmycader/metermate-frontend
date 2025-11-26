@@ -109,6 +109,49 @@ class _MessagesScreenState extends State<MessagesScreen> {
     }
   }
 
+  Future<void> _pokeAdmin() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Poke Admin'),
+        content: const Text('Send a notification to admin? They will be notified that you need attention.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Poke'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final result = await _messagesService.pokeAdmin();
+      if (result['success']) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Admin has been notified!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['message'] ?? 'Failed to notify admin'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
   Future<void> _markAsRead(String id) async {
     await _messagesService.markRead(id);
     _load();
@@ -145,6 +188,11 @@ class _MessagesScreenState extends State<MessagesScreen> {
         backgroundColor: Colors.blue[700],
         foregroundColor: Colors.white,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.notifications_active),
+            tooltip: 'Poke Admin',
+            onPressed: _pokeAdmin,
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _load,

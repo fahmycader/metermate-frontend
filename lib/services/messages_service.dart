@@ -74,5 +74,24 @@ class MessagesService {
       return {'success': false, 'message': 'Could not connect to the server.'};
     }
   }
+
+  Future<Map<String, dynamic>> pokeAdmin() async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'No token found'};
+      final res = await http.post(
+        Uri.parse('$_baseUrl/poke'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+      final data = jsonDecode(res.body);
+      if (res.statusCode == 200 || res.statusCode == 201) return {'success': true, 'data': data};
+      return {'success': false, 'message': data['message'] ?? 'Failed to notify admin'};
+    } catch (e) {
+      return {'success': false, 'message': 'Could not connect to the server.'};
+    }
+  }
 }
 

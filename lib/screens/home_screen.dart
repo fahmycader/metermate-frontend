@@ -397,15 +397,6 @@ class _HomeScreenState extends State<HomeScreen> {
             }),
         const SizedBox(height: 12),
         _buildActionItem(
-            icon: FontAwesomeIcons.gears,
-            title: 'App Settings',
-            subtitle: 'Customize your app preferences',
-            iconColor: Colors.grey,
-            onTap: () {
-              Navigator.of(context).pushNamed('/settings');
-            }),
-        const SizedBox(height: 12),
-        _buildActionItem(
             icon: FontAwesomeIcons.solidComment,
             title: 'Messages',
             subtitle: 'Company updates and notifications',
@@ -421,6 +412,15 @@ class _HomeScreenState extends State<HomeScreen> {
             iconColor: Colors.orange,
             onTap: () {
               Navigator.of(context).pushNamed('/contacts');
+            }),
+        const SizedBox(height: 12),
+        _buildActionItem(
+            icon: FontAwesomeIcons.gears,
+            title: 'App Settings',
+            subtitle: 'Customize your app preferences',
+            iconColor: Colors.grey,
+            onTap: () {
+              Navigator.of(context).pushNamed('/settings');
             }),
       ],
     );
