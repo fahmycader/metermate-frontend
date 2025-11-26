@@ -29,6 +29,19 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
   final Map<String, File?> _photos = {};
   
   String? _customerRead;
+  String? _noAccessReason;
+  
+  // Valid no access reasons
+  final List<String> _validNoAccessReasons = [
+    'Property locked - no key access',
+    'Dog on property - safety concern',
+    'Occupant not home - appointment required',
+    'Meter location inaccessible',
+    'Property under construction',
+    'Hazardous conditions present',
+    'Permission denied by occupant',
+    'Meter damaged - requires repair first',
+  ];
   bool _isSubmitting = false;
   Position? _currentPosition;
   Map<String, dynamic>? _locationValidation;
@@ -400,10 +413,44 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
                         onChanged: (String? newValue) {
                           setState(() {
                             _customerRead = newValue;
+                            // Reset no access reason if status changes
+                            if (newValue != 'No access') {
+                              _noAccessReason = null;
+                            }
                           });
                         },
                         validator: null,
                       ),
+                      // Show valid no access reason dropdown when "No access" is selected
+                      if (_customerRead == 'No access') ...[
+                        const SizedBox(height: 16),
+                        DropdownButtonFormField<String>(
+                          value: _noAccessReason,
+                          decoration: const InputDecoration(
+                            labelText: 'No Access Reason *',
+                            border: OutlineInputBorder(),
+                            hintText: 'Select a valid reason',
+                            helperText: 'Select a valid reason to receive 0.5 points',
+                          ),
+                          items: _validNoAccessReasons.map((String reason) {
+                            return DropdownMenuItem<String>(
+                              value: reason,
+                              child: Text(reason),
+                            );
+                          }).toList(),
+                          onChanged: (String? newValue) {
+                            setState(() {
+                              _noAccessReason = newValue;
+                            });
+                          },
+                          validator: (value) {
+                            if (_customerRead == 'No access' && (value == null || value.isEmpty)) {
+                              return 'Please select a valid no access reason';
+                            }
+                            return null;
+                          },
+                        ),
+                      ],
                       const SizedBox(height: 16),
                       Row(
                         children: [
@@ -1023,6 +1070,12 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
         'registerIds': regIds,
         'registerValues': regVals,
       };
+      
+      // Add valid no access data if "No access" is selected with a valid reason
+      if (_customerRead == 'No access' && _noAccessReason != null && _noAccessReason!.isNotEmpty) {
+        jobCompletionData['validNoAccess'] = true;
+        jobCompletionData['noAccessReason'] = _noAccessReason;
+      }
 
       // Add distance calculation if we have location validation data
       if (_locationValidation?['jobCoordinates'] != null && _currentPosition != null) {

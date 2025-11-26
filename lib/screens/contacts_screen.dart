@@ -13,31 +13,43 @@ class ContactsScreen extends StatefulWidget {
 class _ContactsScreenState extends State<ContactsScreen> {
   double _fontSize = 14.0;
   
-  // Important contacts - can be configured or fetched from backend
+  // Important contacts - UK contact numbers and email addresses
   final List<Map<String, String>> _contacts = [
     {
       'name': 'Emergency Contact',
-      'phone': '+1234567890',
-      'email': 'emergency@metermate.com',
+      'phone': '+44 20 7946 0958',
+      'email': 'emergency@metermate.co.uk',
       'role': 'Emergency',
     },
     {
       'name': 'Support Team',
-      'phone': '+1234567891',
-      'email': 'support@metermate.com',
+      'phone': '+44 20 7946 0959',
+      'email': 'support@metermate.co.uk',
       'role': 'Technical Support',
     },
     {
       'name': 'Admin Office',
-      'phone': '+1234567892',
-      'email': 'admin@metermate.com',
+      'phone': '+44 20 7946 0960',
+      'email': 'admin@metermate.co.uk',
       'role': 'Administration',
     },
     {
       'name': 'Dispatch',
-      'phone': '+1234567893',
-      'email': 'dispatch@metermate.com',
+      'phone': '+44 20 7946 0961',
+      'email': 'dispatch@metermate.co.uk',
       'role': 'Job Dispatch',
+    },
+    {
+      'name': 'Operations Manager',
+      'phone': '+44 20 7946 0962',
+      'email': 'operations@metermate.co.uk',
+      'role': 'Operations',
+    },
+    {
+      'name': 'Customer Service',
+      'phone': '+44 800 123 4567',
+      'email': 'customerservice@metermate.co.uk',
+      'role': 'Customer Service',
     },
   ];
 
