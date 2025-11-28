@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/settings_service.dart';
+import '../services/config_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -11,7 +12,9 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   double _fontSize = 14.0;
   String _themeMode = 'light';
+  String _backendUrl = '';
   bool _isLoading = true;
+  final TextEditingController _urlController = TextEditingController();
 
   @override
   void initState() {
@@ -22,9 +25,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadSettings() async {
     final fontSize = await SettingsService.getFontSize();
     final themeMode = await SettingsService.getThemeMode();
+    final currentUrl = await ConfigService.getBaseUrl();
     setState(() {
       _fontSize = fontSize;
       _themeMode = themeMode;
+      _backendUrl = currentUrl;
+      _urlController.text = currentUrl;
       _isLoading = false;
     });
   }
@@ -73,6 +79,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     if (confirmed == true) {
       await SettingsService.resetSettings();
+      await ConfigService.setCustomBaseUrl(null);
       await _loadSettings();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -83,6 +90,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
         );
       }
     }
+  }
+
+  @override
+  void dispose() {
+    _urlController.dispose();
+    super.dispose();
   }
 
   @override
@@ -191,6 +204,147 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     value: 'system',
                     groupValue: _themeMode,
                     onChanged: (value) => _saveThemeMode(value!),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          
+          // Backend URL Configuration Section
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.cloud, color: Colors.blue[700]),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'Backend Server URL',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Configure the backend server URL for mobile data access. Leave empty to use auto-detection.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _urlController,
+                    decoration: InputDecoration(
+                      labelText: 'Backend URL',
+                      hintText: 'http://95.214.230.168:3001 (include :3001)',
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.link),
+                      suffixIcon: _urlController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                _urlController.clear();
+                                setState(() {});
+                              },
+                            )
+                          : null,
+                    ),
+                    keyboardType: TextInputType.url,
+                    onChanged: (value) {
+                      setState(() {
+                        _backendUrl = value;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () {
+                          _urlController.text = ConfigService.baseUrl;
+                          setState(() {
+                            _backendUrl = ConfigService.baseUrl;
+                          });
+                        },
+                        child: const Text('Use Default'),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () async {
+                          var url = _urlController.text.trim();
+                          if (url.isNotEmpty) {
+                            // Validate URL format
+                            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('URL must start with http:// or https://'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                              return;
+                            }
+                            
+                            // Auto-add port 3001 if missing and it's an IP address
+                            final uri = Uri.tryParse(url);
+                            if (uri != null) {
+                              // Check if it's an IP address (not a domain)
+                              final host = uri.host;
+                              final isIpAddress = RegExp(r'^(\d{1,3}\.){3}\d{1,3}$').hasMatch(host);
+                              
+                              // If IP address and no port specified, add :3001
+                              if (isIpAddress && uri.port == 0 && !url.contains(':')) {
+                                url = url.replaceFirst(RegExp(r'/$'), '') + ':3001';
+                                _urlController.text = url;
+                              }
+                            }
+                            
+                            await ConfigService.setCustomBaseUrl(url);
+                            setState(() {
+                              _backendUrl = url;
+                            });
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Backend URL saved: $url\nRestart app to apply changes.'),
+                                  backgroundColor: Colors.green,
+                                  duration: const Duration(seconds: 4),
+                                ),
+                              );
+                            }
+                          } else {
+                            // Clear custom URL
+                            await ConfigService.setCustomBaseUrl(null);
+                            final defaultUrl = await ConfigService.getBaseUrl();
+                            setState(() {
+                              _backendUrl = defaultUrl;
+                            });
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Using auto-detection. Restart app to apply.'),
+                                  backgroundColor: Colors.blue,
+                                  duration: Duration(seconds: 3),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue[700],
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Save URL'),
+                      ),
+                    ],
                   ),
                 ],
               ),

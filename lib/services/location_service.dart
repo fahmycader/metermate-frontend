@@ -1,18 +1,16 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'config_service.dart';
 
 class LocationService {
-  static String get _baseUrl => ConfigService.jobsUrl;
+  static Future<String> get _baseUrl async => '${await ConfigService.getBaseUrl()}/api/jobs';
   
   StreamSubscription<Position>? _positionStream;
   Position? _currentPosition;
-  List<Position> _locationHistory = [];
+  final List<Position> _locationHistory = [];
   Timer? _locationTimer;
   
   Future<String?> _getToken() async {
@@ -114,7 +112,7 @@ class LocationService {
       if (token == null) return;
 
       await http.post(
-        Uri.parse('$_baseUrl/$jobId/location'),
+        Uri.parse('${await _baseUrl}/$jobId/location'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -125,8 +123,34 @@ class LocationService {
           'timestamp': DateTime.now().toIso8601String(),
         }),
       );
+      
+      // Also update user's current location (every 30 seconds)
+      await _updateUserLocation(position);
     } catch (e) {
       print('Error sending location update: $e');
+    }
+  }
+
+  Future<void> _updateUserLocation(Position position) async {
+    try {
+      String? token = await _getToken();
+      if (token == null) return;
+
+      final baseUrl = await ConfigService.getBaseUrl();
+      await http.put(
+        Uri.parse('$baseUrl/api/users/me/location'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'latitude': position.latitude,
+          'longitude': position.longitude,
+          'accuracy': position.accuracy,
+        }),
+      );
+    } catch (e) {
+      print('Error updating user location: $e');
     }
   }
 
@@ -138,7 +162,7 @@ class LocationService {
       }
 
       final response = await http.post(
-        Uri.parse('$_baseUrl/$jobId/start'),
+        Uri.parse('${await _baseUrl}/$jobId/start'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -181,7 +205,7 @@ class LocationService {
       }
 
       final response = await http.post(
-        Uri.parse('$_baseUrl/$jobId/complete'),
+        Uri.parse('${await _baseUrl}/$jobId/complete'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -224,7 +248,7 @@ class LocationService {
       }
 
       final response = await http.get(
-        Uri.parse('$_baseUrl/$jobId/location'),
+        Uri.parse('${await _baseUrl}/$jobId/location'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',

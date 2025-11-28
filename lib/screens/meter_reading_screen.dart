@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:geolocator/geolocator.dart';
@@ -8,6 +9,9 @@ import '../services/job_service.dart';
 import '../services/location_service.dart';
 import '../services/camera_service.dart';
 import '../services/location_validation_service.dart';
+import '../services/sync_service.dart';
+import '../services/connectivity_service.dart';
+import '../services/offline_storage_service.dart';
 import '../widgets/location_input_dialog.dart';
 
 class MeterReadingScreen extends StatefulWidget {
@@ -66,19 +70,61 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
     'Unsafe premises',
   ];
 
+  Timer? _locationCheckTimer;
+
   @override
   void initState() {
     super.initState();
     _initializeControllers();
     _validateLocation();
+    // Start continuous location tracking every 5 seconds
+    _locationCheckTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      _validateLocation();
+    });
   }
 
   Future<void> _validateLocation() async {
-    setState(() => _isValidatingLocation = true);
+    // Don't show loading spinner on periodic updates
+    if (!_isValidatingLocation) {
+      setState(() => _isValidatingLocation = true);
+    }
     
     try {
-      // Get current position
-      final position = await LocationValidationService.getCurrentPosition();
+      // Get current position with retry and improved accuracy
+      Position? position;
+      int attempts = 0;
+      double bestAccuracy = double.infinity;
+      Position? bestPosition;
+      
+      while (attempts < 5 && (position == null || position.accuracy > 15.0)) {
+        final currentPosition = await LocationValidationService.getCurrentPosition();
+        if (currentPosition != null) {
+          // Keep track of the most accurate position
+          if (currentPosition.accuracy < bestAccuracy) {
+            bestAccuracy = currentPosition.accuracy;
+            bestPosition = currentPosition;
+          }
+          
+          // If we have a good enough position (accuracy < 15m), use it
+          if (currentPosition.accuracy <= 15.0) {
+            position = currentPosition;
+            break;
+          }
+          
+          // Otherwise, wait and try again
+          await Future.delayed(const Duration(milliseconds: 1000));
+        } else {
+          await Future.delayed(const Duration(milliseconds: 1000));
+        }
+        attempts++;
+      }
+      
+      // Use the best position we found, even if accuracy isn't perfect
+      if (position == null && bestPosition != null) {
+        position = bestPosition;
+        print('⚠️ Using best available position with ${position.accuracy}m accuracy');
+      }
+      
       if (position == null) {
         setState(() {
           _locationValidation = {
@@ -87,6 +133,7 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
             'error': 'Unable to get current location. Please enable location services.',
             'canProceed': false,
           };
+          _isValidatingLocation = false;
         });
         return;
       }
@@ -292,9 +339,7 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    _locationValidation!['error'] != null
-                                        ? _locationValidation!['error']
-                                        : 'Distance to Job: ${_locationValidation!['distance'].toStringAsFixed(0)} meters',
+                                    _locationValidation!['error'] ?? 'Distance to Job: ${_locationValidation!['distance'].toStringAsFixed(0)} meters',
                                     style: TextStyle(
                                       fontSize: 16,
                                       color: _locationValidation!['isValid'] == true ? Colors.green[600] : Colors.orange[600],
@@ -398,7 +443,7 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
                       
                       const SizedBox(height: 16),
                       DropdownButtonFormField<String>(
-                        value: _customerRead,
+                        initialValue: _customerRead,
                         decoration: const InputDecoration(
                           labelText: 'No Access Status?',
                           border: OutlineInputBorder(),
@@ -425,7 +470,7 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
                       if (_customerRead == 'No access') ...[
                         const SizedBox(height: 16),
                         DropdownButtonFormField<String>(
-                          value: _noAccessReason,
+                          initialValue: _noAccessReason,
                           decoration: const InputDecoration(
                             labelText: 'No Access Reason *',
                             border: OutlineInputBorder(),
@@ -516,7 +561,7 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
                       if (_customerRead == null) ...[
                         const SizedBox(height: 12),
                         DropdownButtonFormField<int>(
-                          value: _numRegisters,
+                          initialValue: _numRegisters,
                           decoration: const InputDecoration(
                             labelText: 'NoR (Number of Registers)',
                             border: OutlineInputBorder(),
@@ -992,17 +1037,28 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
 
     setState(() => _isSubmitting = true);
 
+    final syncService = SyncService();
+    final isOnline = await syncService.isOnline();
+
     try {
-      // Upload photo if taken
+      // Upload photo if taken (only if online)
       List<String> photoUrls = [];
+      List<String> photoPaths = [];
+      
       if (_photos['meter'] != null) {
-        String? url = await _cameraService.uploadPhoto(
-          _photos['meter']!,
-          widget.job['_id'],
-          'meter',
-        );
-        if (url != null) {
-          photoUrls.add(url);
+        if (isOnline) {
+          // Upload photo immediately if online
+          String? url = await _cameraService.uploadPhoto(
+            _photos['meter']!,
+            widget.job['_id'],
+            'meter',
+          );
+          if (url != null) {
+            photoUrls.add(url);
+          }
+        } else {
+          // Save photo path for offline sync
+          photoPaths.add(_photos['meter']!.path);
         }
       }
 
@@ -1042,8 +1098,8 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
       final List<String> regIds = [];
       final List<num> regVals = [];
       for (int i = 1; i <= _numRegisters; i++) {
-        final regId = _controllers['regID$i']?.text?.trim();
-        final regVal = _controllers['reg$i']?.text?.trim();
+        final regId = _controllers['regID$i']?.text.trim();
+        final regVal = _controllers['reg$i']?.text.trim();
         if (regId != null && regId.isNotEmpty) {
           regIds.add(regId);
         }
@@ -1071,10 +1127,13 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
         'registerValues': regVals,
       };
       
-      // Add valid no access data if "No access" is selected with a valid reason
-      if (_customerRead == 'No access' && _noAccessReason != null && _noAccessReason!.isNotEmpty) {
+      // Add no access data if ANY "No Access Status" option is selected
+      // Award 0.5 points for ANY no access status option
+      if (_customerRead != null && _customerRead!.isNotEmpty) {
+        jobCompletionData['customerRead'] = _customerRead;
         jobCompletionData['validNoAccess'] = true;
-        jobCompletionData['noAccessReason'] = _noAccessReason;
+        // Use noAccessReason if provided (for "No access" option), otherwise use customerRead
+        jobCompletionData['noAccessReason'] = _noAccessReason ?? _customerRead;
       }
 
       // Add distance calculation if we have location validation data
@@ -1090,27 +1149,47 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
         };
       }
 
-      // Complete the job using the new endpoint
-      final result = await jobService.completeJob(widget.job['_id'], jobCompletionData);
-      
-      if (result['success']) {
+      // Complete the job - online or offline
+      if (isOnline) {
+        // Submit immediately if online
+        final result = await jobService.completeJob(widget.job['_id'], jobCompletionData);
+        
+        if (result['success']) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Job completed successfully!'),
+                backgroundColor: Colors.green,
+              ),
+            );
+            Navigator.of(context).pop(true); // Return true to indicate success
+          }
+        } else {
+          // If submission fails, save to offline storage
+          await _saveOffline(photoPaths, jobCompletionData);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('${result['message']}. Saved offline for sync.'),
+                backgroundColor: Colors.orange,
+                duration: const Duration(seconds: 4),
+              ),
+            );
+            Navigator.of(context).pop(true);
+          }
+        }
+      } else {
+        // Save to offline storage if offline
+        await _saveOffline(photoPaths, jobCompletionData);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Job completed successfully!'),
-              backgroundColor: Colors.green,
+              content: Text('Job saved offline. Will sync when connection is restored.'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 4),
             ),
           );
-          Navigator.of(context).pop(true); // Return true to indicate success
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result['message']),
-              backgroundColor: Colors.red,
-            ),
-          );
+          Navigator.of(context).pop(true);
         }
       }
     } catch (e) {
@@ -1127,8 +1206,24 @@ class _MeterReadingScreenState extends State<MeterReadingScreen> {
     }
   }
 
+  // Save job completion to offline storage
+  Future<void> _saveOffline(List<String> photoPaths, Map<String, dynamic> jobCompletionData) async {
+    try {
+      final storage = OfflineStorageService();
+      await storage.savePendingJobCompletion(
+        jobId: widget.job['_id'],
+        completionData: jobCompletionData,
+        photoPaths: photoPaths.isNotEmpty ? photoPaths : null,
+      );
+      print('💾 Saved job completion offline: ${widget.job['_id']}');
+    } catch (e) {
+      print('❌ Error saving offline: $e');
+    }
+  }
+
   @override
   void dispose() {
+    _locationCheckTimer?.cancel();
     for (var controller in _controllers.values) {
       controller.dispose();
     }

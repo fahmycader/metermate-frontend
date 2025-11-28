@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'config_service.dart';
 
 class JobService {
-  static String get _baseUrl => ConfigService.jobsUrl;
+  static Future<String> get _baseUrl async => '${await ConfigService.getBaseUrl()}/api/jobs';
 
   Future<String?> _getToken() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -18,8 +18,9 @@ class JobService {
         return {'success': false, 'message': 'No token found'};
       }
 
+      final baseUrl = await _baseUrl;
       final response = await http.get(
-        Uri.parse(_baseUrl),
+        Uri.parse(baseUrl),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -51,7 +52,8 @@ class JobService {
       if (jobType != null && jobType.isNotEmpty) queryParams['jobType'] = jobType;
       if (priority != null && priority.isNotEmpty) queryParams['priority'] = priority;
 
-      final uri = Uri.parse('$_baseUrl/assigned').replace(queryParameters: queryParams);
+      final baseUrl = await _baseUrl;
+      final uri = Uri.parse('$baseUrl/assigned').replace(queryParameters: queryParams);
 
       final response = await http.get(
         uri,
@@ -86,7 +88,8 @@ class JobService {
       if (jobType != null && jobType.isNotEmpty) queryParams['jobType'] = jobType;
       if (priority != null && priority.isNotEmpty) queryParams['priority'] = priority;
 
-      final uri = Uri.parse('$_baseUrl/today').replace(queryParameters: queryParams);
+      final baseUrl = await _baseUrl;
+      final uri = Uri.parse('$baseUrl/today').replace(queryParameters: queryParams);
 
       final response = await http.get(
         uri,
@@ -123,7 +126,8 @@ class JobService {
       if (userLatitude != null) queryParams['userLatitude'] = userLatitude.toString();
       if (userLongitude != null) queryParams['userLongitude'] = userLongitude.toString();
 
-      final uri = Uri.parse('$_baseUrl/today-geo').replace(queryParameters: queryParams);
+      final baseUrl = await _baseUrl;
+      final uri = Uri.parse('$baseUrl/today-geo').replace(queryParameters: queryParams);
 
       final response = await http.get(
         uri,
@@ -159,7 +163,8 @@ class JobService {
       if (priority != null && priority.isNotEmpty) queryParams['priority'] = priority;
       if (dateRange != null && dateRange.isNotEmpty) queryParams['dateRange'] = dateRange;
 
-      final uri = Uri.parse('$_baseUrl/my-count').replace(queryParameters: queryParams);
+      final baseUrl = await _baseUrl;
+      final uri = Uri.parse('$baseUrl/my-count').replace(queryParameters: queryParams);
 
       final response = await http.get(
         uri,
@@ -189,7 +194,7 @@ class JobService {
       }
 
       final response = await http.put(
-        Uri.parse('$_baseUrl/$jobId'),
+        Uri.parse('${await _baseUrl}/$jobId'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -217,7 +222,7 @@ class JobService {
       }
 
       final response = await http.put(
-        Uri.parse('$_baseUrl/$jobId'),
+        Uri.parse('${await _baseUrl}/$jobId'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -249,7 +254,7 @@ class JobService {
       }
 
       final response = await http.put(
-        Uri.parse('$_baseUrl/$jobId/complete'),
+        Uri.parse('${await _baseUrl}/$jobId/complete'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',

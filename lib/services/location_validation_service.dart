@@ -7,19 +7,24 @@ class LocationValidationService {
   /// Get job coordinates from multiple possible sources
   static Future<Map<String, dynamic>?> getJobCoordinates(Map<String, dynamic> job) async {
     print('🔍 Searching for job coordinates...');
+    print('Job ID: ${job['_id']}');
     print('Job data structure: ${job.keys.toList()}');
     
-    // Method 1: Try house coordinates
-    if (job['house'] != null) {
-      final house = job['house'];
-      print('🏠 House data: $house');
+    // Method 1: Try location field first (most reliable for bulk uploads)
+    if (job['location'] != null) {
+      final location = job['location'];
+      print('📍 Location data: $location');
       
-      if (house['latitude'] != null && house['longitude'] != null) {
-        print('✅ Found coordinates in house: ${house['latitude']}, ${house['longitude']}');
+      // Handle both Map and direct object access
+      dynamic lat = location is Map ? location['latitude'] : (location as dynamic).latitude;
+      dynamic lng = location is Map ? location['longitude'] : (location as dynamic).longitude;
+      
+      if (lat != null && lng != null) {
+        print('✅ Found coordinates in location: $lat, $lng');
         return {
-          'latitude': house['latitude'].toDouble(),
-          'longitude': house['longitude'].toDouble(),
-          'source': 'house'
+          'latitude': (lat is num) ? lat.toDouble() : double.parse(lat.toString()),
+          'longitude': (lng is num) ? lng.toDouble() : double.parse(lng.toString()),
+          'source': 'location'
         };
       }
     }
@@ -29,27 +34,35 @@ class LocationValidationService {
       final address = job['address'];
       print('🏠 Address data: $address');
       
-      if (address['latitude'] != null && address['longitude'] != null) {
-        print('✅ Found coordinates in address: ${address['latitude']}, ${address['longitude']}');
+      // Handle both Map and direct object access
+      dynamic lat = address is Map ? address['latitude'] : (address as dynamic).latitude;
+      dynamic lng = address is Map ? address['longitude'] : (address as dynamic).longitude;
+      
+      if (lat != null && lng != null) {
+        print('✅ Found coordinates in address: $lat, $lng');
         return {
-          'latitude': address['latitude'].toDouble(),
-          'longitude': address['longitude'].toDouble(),
+          'latitude': (lat is num) ? lat.toDouble() : double.parse(lat.toString()),
+          'longitude': (lng is num) ? lng.toDouble() : double.parse(lng.toString()),
           'source': 'address'
         };
       }
     }
     
-    // Method 3: Try location field
-    if (job['location'] != null) {
-      final location = job['location'];
-      print('📍 Location data: $location');
+    // Method 3: Try house coordinates
+    if (job['house'] != null) {
+      final house = job['house'];
+      print('🏠 House data: $house');
       
-      if (location['latitude'] != null && location['longitude'] != null) {
-        print('✅ Found coordinates in location: ${location['latitude']}, ${location['longitude']}');
+      // Handle both Map and direct object access
+      dynamic lat = house is Map ? house['latitude'] : (house as dynamic).latitude;
+      dynamic lng = house is Map ? house['longitude'] : (house as dynamic).longitude;
+      
+      if (lat != null && lng != null) {
+        print('✅ Found coordinates in house: $lat, $lng');
         return {
-          'latitude': location['latitude'].toDouble(),
-          'longitude': location['longitude'].toDouble(),
-          'source': 'location'
+          'latitude': (lat is num) ? lat.toDouble() : double.parse(lat.toString()),
+          'longitude': (lng is num) ? lng.toDouble() : double.parse(lng.toString()),
+          'source': 'house'
         };
       }
     }
@@ -155,10 +168,10 @@ class LocationValidationService {
     };
   }
   
-  /// Get current user position with error handling
+  /// Get current user position with error handling and improved accuracy
   static Future<Position?> getCurrentPosition() async {
     try {
-      print('📍 Getting current position...');
+      print('📍 Getting current position with high accuracy...');
       
       // Check permissions
       LocationPermission permission = await Geolocator.checkPermission();
@@ -175,13 +188,36 @@ class LocationValidationService {
         return null;
       }
       
-      // Get position
+      // Check if location services are enabled
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        print('❌ Location services are disabled');
+        return null;
+      }
+      
+      // Get position with best accuracy
       Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 10),
+        desiredAccuracy: LocationAccuracy.best, // Use best accuracy for precise location
+        timeLimit: const Duration(seconds: 15), // Increased timeout for better accuracy
       );
       
-      print('✅ Current position: ${position.latitude}, ${position.longitude}');
+      print('✅ Current position: ${position.latitude}, ${position.longitude} (accuracy: ${position.accuracy}m)');
+      
+      // If accuracy is poor (> 20m), try to get a better reading
+      if (position.accuracy > 20.0) {
+        print('⚠️ Position accuracy is ${position.accuracy}m, attempting to get better reading...');
+        // Wait a moment and try again
+        await Future.delayed(const Duration(seconds: 2));
+        Position betterPosition = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.best,
+          timeLimit: const Duration(seconds: 15),
+        );
+        if (betterPosition.accuracy < position.accuracy) {
+          print('✅ Better position obtained: ${betterPosition.accuracy}m accuracy');
+          return betterPosition;
+        }
+      }
+      
       return position;
       
     } catch (e) {

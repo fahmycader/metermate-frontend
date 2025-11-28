@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'config_service.dart';
 
 class MeterReadingService {
-  static String get _baseUrl => ConfigService.baseUrl + '/api/meter-readings';
+  static Future<String> get _baseUrl async => '${await ConfigService.getBaseUrl()}/api/meter-readings';
 
   Future<String?> _getToken() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -19,7 +19,7 @@ class MeterReadingService {
       }
 
       final response = await http.post(
-        Uri.parse(_baseUrl),
+        Uri.parse(await _baseUrl),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -54,7 +54,8 @@ class MeterReadingService {
         queryParams['date'] = date;
       }
 
-      final uri = Uri.parse(_baseUrl).replace(queryParameters: queryParams);
+      final baseUrl = await _baseUrl;
+      final uri = Uri.parse(baseUrl).replace(queryParameters: queryParams);
 
       final response = await http.get(
         uri,
@@ -84,7 +85,7 @@ class MeterReadingService {
       }
 
       final response = await http.get(
-        Uri.parse('$_baseUrl/today'),
+        Uri.parse('${await _baseUrl}/today'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -111,7 +112,7 @@ class MeterReadingService {
       }
 
       final response = await http.get(
-        Uri.parse('$_baseUrl/$readingId'),
+        Uri.parse('${await _baseUrl}/$readingId'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -138,7 +139,7 @@ class MeterReadingService {
       }
 
       final response = await http.put(
-        Uri.parse('$_baseUrl/$readingId'),
+        Uri.parse('${await _baseUrl}/$readingId'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',

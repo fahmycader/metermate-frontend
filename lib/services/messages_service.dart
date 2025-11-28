@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'config_service.dart';
 
 class MessagesService {
-  static String get _baseUrl => ConfigService.messagesUrl;
+  static Future<String> get _baseUrl async => '${await ConfigService.getBaseUrl()}/api/messages';
 
   Future<String?> _getToken() async {
     final prefs = await SharedPreferences.getInstance();
@@ -16,7 +16,7 @@ class MessagesService {
       final token = await _getToken();
       if (token == null) return {'success': false, 'message': 'No token found'};
       final res = await http.get(
-        Uri.parse(_baseUrl),
+        Uri.parse(await _baseUrl),
         headers: {'Authorization': 'Bearer $token'},
       );
       final data = jsonDecode(res.body);
@@ -32,7 +32,7 @@ class MessagesService {
       final token = await _getToken();
       if (token == null) return {'success': false, 'message': 'No token found'};
       final res = await http.put(
-        Uri.parse('$_baseUrl/$id/read'),
+        Uri.parse('${await _baseUrl}/$id/read'),
         headers: {'Authorization': 'Bearer $token'},
       );
       final data = jsonDecode(res.body);
@@ -48,7 +48,7 @@ class MessagesService {
       final token = await _getToken();
       if (token == null) return {'success': false, 'message': 'No token found'};
       final res = await http.delete(
-        Uri.parse('$_baseUrl/$id'),
+        Uri.parse('${await _baseUrl}/$id'),
         headers: {'Authorization': 'Bearer $token'},
       );
       final data = jsonDecode(res.body);
@@ -64,7 +64,7 @@ class MessagesService {
       final token = await _getToken();
       if (token == null) return {'success': false, 'message': 'No token found'};
       final res = await http.put(
-        Uri.parse('$_baseUrl/$id/star'),
+        Uri.parse('${await _baseUrl}/$id/star'),
         headers: {'Authorization': 'Bearer $token'},
       );
       final data = jsonDecode(res.body);
@@ -80,7 +80,7 @@ class MessagesService {
       final token = await _getToken();
       if (token == null) return {'success': false, 'message': 'No token found'};
       final res = await http.post(
-        Uri.parse('$_baseUrl/poke'),
+        Uri.parse('${await _baseUrl}/poke'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',

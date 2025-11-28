@@ -9,12 +9,20 @@ import 'package:metermate_frontend/screens/meter_reading_screen.dart';
 import 'package:metermate_frontend/screens/messages_screen.dart';
 import 'package:metermate_frontend/screens/settings_screen.dart';
 import 'package:metermate_frontend/screens/contacts_screen.dart';
+import 'package:metermate_frontend/screens/vehicle_check_screen.dart';
 import 'package:metermate_frontend/services/config_service.dart';
 import 'package:metermate_frontend/services/settings_service.dart';
+import 'package:metermate_frontend/services/connectivity_service.dart';
+import 'package:metermate_frontend/services/sync_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await ConfigService.initialize();
+  
+  // Initialize connectivity and sync services
+  await ConnectivityService().initialize();
+  await SyncService().startAutoSync();
+  
   runApp(const MyApp());
 }
 
@@ -84,6 +92,7 @@ class _MyAppState extends State<MyApp> {
           final job = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
           return MeterReadingScreen(job: job);
         },
+        '/vehicle-check': (context) => const VehicleCheckScreen(),
       },
       debugShowCheckedModeBanner: false,
     );

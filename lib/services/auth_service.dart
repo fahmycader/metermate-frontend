@@ -10,11 +10,13 @@ class AuthService {
 
   Future<Map<String, dynamic>> login(String username, String password) async {
     try {
+      final baseUrl = await _baseUrl;
+      print('🔗 Attempting to connect to: $baseUrl/login');
       final response = await http.post(
-        Uri.parse('$_baseUrl/login'),
+        Uri.parse('$baseUrl/login'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'username': username, 'password': password}),
-      );
+      ).timeout(const Duration(seconds: 10));
 
       final responseData = jsonDecode(response.body);
       if (response.statusCode == 200) {
@@ -28,8 +30,24 @@ class AuthService {
         return {'success': false, 'message': responseData['message'] ?? 'Login failed'};
       }
     } catch (e) {
-      print('Login Error: $e');
-      return {'success': false, 'message': 'Could not connect to the server.'};
+      final baseUrl = await _baseUrl;
+      print('❌ Login Error: $e');
+      print('❌ Failed URL: $baseUrl/login');
+      print('❌ Error type: ${e.runtimeType}');
+      String errorMessage = 'Could not connect to the server.';
+      final currentBaseUrl = await ConfigService.getBaseUrl();
+      if (e.toString().contains('TimeoutException') || e.toString().contains('timeout')) {
+        // Check if URL is missing port
+        final uri = Uri.tryParse(currentBaseUrl);
+        final hasPort = uri != null && uri.port != 0;
+        final portHint = !hasPort ? '\n\n⚠️ Missing port number! URL should be: $currentBaseUrl:3001' : '';
+        errorMessage = 'Connection timeout. Please check your network connection.\n\nCurrent URL: $currentBaseUrl$portHint\n\nIf on mobile data:\n1. Ensure port forwarding is configured on router\n2. Update Settings > Backend Server URL to: http://YOUR_PUBLIC_IP:3001';
+      } else if (e.toString().contains('SocketException') || e.toString().contains('Failed host lookup')) {
+        errorMessage = 'Cannot reach server at $currentBaseUrl.\n\nPlease check:\n1. Backend server is running\n2. If on mobile data, set the correct backend URL in Settings\n3. Firewall is not blocking the connection';
+      } else if (e.toString().contains('Connection refused')) {
+        errorMessage = 'Connection refused. Please ensure the backend server is running on $currentBaseUrl';
+      }
+      return {'success': false, 'message': errorMessage};
     }
   }
 
@@ -42,8 +60,9 @@ class AuthService {
     String? department,
   }) async {
     try {
+      final baseUrl = await _baseUrl;
       final response = await http.post(
-        Uri.parse('$_baseUrl/register'),
+        Uri.parse('$baseUrl/register'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'username': username, 
@@ -146,8 +165,9 @@ class AuthService {
         return {'success': false, 'message': 'No token found'};
       }
 
+      final baseUrl = await _baseUrl;
       final response = await http.get(
-        Uri.parse('$_baseUrl/profile'),
+        Uri.parse('$baseUrl/profile'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',

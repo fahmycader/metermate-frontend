@@ -19,6 +19,7 @@ class _SignupScreenState extends State<SignupScreen> {
   String _selectedDepartment = 'meter';
   final _authService = AuthService();
   bool _isLoading = false;
+  bool _obscurePassword = true;
 
   void _handleSignup() async {
     if (_usernameController.text.isEmpty || _passwordController.text.isEmpty) {
@@ -52,7 +53,8 @@ class _SignupScreenState extends State<SignupScreen> {
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.of(context).pushReplacementNamed('/home');
+        // Navigate to vehicle check screen first, then home
+        Navigator.of(context).pushReplacementNamed('/vehicle-check');
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -122,11 +124,21 @@ class _SignupScreenState extends State<SignupScreen> {
                     const SizedBox(height: 16.0),
                     TextFormField(
                       controller: _passwordController,
-                      obscureText: true,
-                      decoration: const InputDecoration(
+                      obscureText: _obscurePassword,
+                      decoration: InputDecoration(
                         labelText: 'Password *',
-                        prefixIcon: Icon(Icons.lock_outline),
-                        border: OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _obscurePassword = !_obscurePassword;
+                            });
+                          },
+                        ),
+                        border: const OutlineInputBorder(),
                       ),
                     ),
                     const SizedBox(height: 16.0),
@@ -186,7 +198,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     ),
                     const SizedBox(height: 16.0),
                     DropdownButtonFormField<String>(
-                      value: _selectedDepartment,
+                      initialValue: _selectedDepartment,
                       decoration: const InputDecoration(
                         labelText: 'Department',
                         prefixIcon: Icon(Icons.business_outlined),

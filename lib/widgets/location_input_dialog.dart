@@ -12,7 +12,7 @@ class LocationInputDialog extends StatefulWidget {
 class _LocationInputDialogState extends State<LocationInputDialog> {
   final _latitudeController = TextEditingController();
   final _longitudeController = TextEditingController();
-  bool _isValidating = false;
+  final bool _isValidating = false;
 
   @override
   void dispose() {

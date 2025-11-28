@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:metermate_frontend/screens/home_screen.dart';
-import 'package:metermate_frontend/screens/signup_screen.dart';
 import 'package:metermate_frontend/services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -15,6 +13,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   final _authService = AuthService();
   bool _isLoading = false;
+  bool _obscurePassword = true;
 
   void _handleLogin() async {
     setState(() => _isLoading = true);
@@ -26,7 +25,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (mounted) {
       if (result['success']) {
-        Navigator.of(context).pushReplacementNamed('/home');
+        // Navigate to vehicle check screen first, then home
+        Navigator.of(context).pushReplacementNamed('/vehicle-check');
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -88,11 +88,21 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 16.0),
                     TextFormField(
                       controller: _passwordController,
-                      obscureText: true,
-                      decoration: const InputDecoration(
+                      obscureText: _obscurePassword,
+                      decoration: InputDecoration(
                         labelText: 'Password',
-                        prefixIcon: Icon(Icons.lock_outline),
-                        border: OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _obscurePassword = !_obscurePassword;
+                            });
+                          },
+                        ),
+                        border: const OutlineInputBorder(),
                       ),
                     ),
                     const SizedBox(height: 32.0),

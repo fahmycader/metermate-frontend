@@ -6,6 +6,7 @@ import 'package:geolocator/geolocator.dart';
 import '../services/job_service.dart';
 import '../services/location_service.dart';
 import '../services/camera_service.dart';
+import '../services/location_validation_service.dart';
 
 class TodaysJobsScreen extends StatefulWidget {
   const TodaysJobsScreen({super.key});
@@ -22,7 +23,7 @@ class _TodaysJobsScreenState extends State<TodaysJobsScreen> {
   Map<String, dynamic>? _jobCounts;
   bool _isLoading = true;
   String _selectedFilter = 'all';
-  Map<String, bool> _trackingJobs = {}; // Track which jobs are being tracked
+  final Map<String, bool> _trackingJobs = {}; // Track which jobs are being tracked
 
   @override
   void initState() {
@@ -378,6 +379,71 @@ class _TodaysJobsScreenState extends State<TodaysJobsScreen> {
     );
   }
 
+  /// Check if a job can be accessed (must be next in sequence or already started/completed)
+  bool _canAccessJob(Map<String, dynamic> job) {
+    final status = job['status'];
+    final sequenceNumber = job['sequenceNumber'];
+    
+    // If job is already completed or in progress, allow access
+    if (status == 'completed' || status == 'in_progress') {
+      return true;
+    }
+    
+    // If no sequence number, allow access (backward compatibility)
+    if (sequenceNumber == null) {
+      return true;
+    }
+    
+    // Find the next available job in sequence
+    final nextJob = _getNextAvailableJob();
+    
+    // If this is the next job in sequence, allow access
+    if (nextJob != null && nextJob['_id'] == job['_id']) {
+      return true;
+    }
+    
+    // If there's no next job, check if ALL jobs are completed
+    // Only then allow access to any remaining pending job
+    if (nextJob == null) {
+      // Check if there are any pending or in_progress jobs with sequence numbers
+      final hasPendingJobs = _jobs.any((j) {
+        final s = j['status'];
+        final seq = j['sequenceNumber'];
+        return (s == 'pending' || s == 'in_progress') && seq != null;
+      });
+      
+      // If no pending jobs exist, all are completed - allow access
+      // Otherwise, there are pending jobs but none are next (shouldn't happen, but safety check)
+      return !hasPendingJobs;
+    }
+    
+    // Otherwise, this job is not the next in sequence
+    return false;
+  }
+  
+  /// Get the next available job in sequence (lowest sequence number that is pending or in_progress)
+  Map<String, dynamic>? _getNextAvailableJob() {
+    // Filter jobs that are pending or in_progress and have sequence numbers
+    final availableJobs = _jobs.where((job) {
+      final status = job['status'];
+      final sequenceNumber = job['sequenceNumber'];
+      return (status == 'pending' || status == 'in_progress') && sequenceNumber != null;
+    }).toList();
+    
+    if (availableJobs.isEmpty) {
+      return null;
+    }
+    
+    // Sort by sequence number and return the first one
+    availableJobs.sort((a, b) {
+      final seqA = a['sequenceNumber'] ?? 999999;
+      final seqB = b['sequenceNumber'] ?? 999999;
+      return seqA.compareTo(seqB);
+    });
+    
+    return availableJobs.first;
+  }
+
   Widget _buildJobCard(Map<String, dynamic> job) {
     final address = job['address'];
     final assignedTo = job['assignedTo'];
@@ -385,127 +451,145 @@ class _TodaysJobsScreenState extends State<TodaysJobsScreen> {
     final priority = job['priority'];
     final jobType = job['jobType'];
     final scheduledDate = DateTime.parse(job['scheduledDate']);
+    final canAccess = _canAccessJob(job);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                // Sequence number badge
-                if (job['sequenceNumber'] != null) ...[
-                  Container(
-                    width: 50,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      color: Colors.blue[700],
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Text(
-                        '${job['sequenceNumber']}',
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+      color: canAccess ? null : Colors.grey[100], // Gray out if not accessible
+      child: Opacity(
+        opacity: canAccess ? 1.0 : 0.6, // Reduce opacity if not accessible
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  // Sequence number badge
+                  if (job['sequenceNumber'] != null) ...[
+                    Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: canAccess ? Colors.blue[700] : Colors.grey[400],
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Stack(
+                          children: [
+                            Text(
+                              '${job['sequenceNumber']}',
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                            if (!canAccess && status == 'pending')
+                              const Positioned(
+                                right: 0,
+                                top: 0,
+                                child: Icon(
+                                  Icons.lock,
+                                  size: 16,
+                                  color: Colors.white,
+                                ),
+                              ),
+                          ],
                         ),
                       ),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              _getJobTypeIcon(jobType),
+                              style: const TextStyle(fontSize: 20),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              jobType.toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: _getJobTypeColor(jobType),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          address['street'] ?? 'Unknown Address',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${address['city']}, ${address['state']} ${address['zipCode']}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 12),
-                ],
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Row(
-                        children: [
-                          Text(
-                            _getJobTypeIcon(jobType),
-                            style: const TextStyle(fontSize: 20),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: _getStatusColor(status) == 'green' ? Colors.green[100] :
+                                 _getStatusColor(status) == 'blue' ? Colors.blue[100] :
+                                 _getStatusColor(status) == 'red' ? Colors.red[100] :
+                                 Colors.yellow[100],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          status.toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: _getStatusColor(status) == 'green' ? Colors.green[800] :
+                                   _getStatusColor(status) == 'blue' ? Colors.blue[800] :
+                                   _getStatusColor(status) == 'red' ? Colors.red[800] :
+                                   Colors.yellow[800],
                           ),
-                          const SizedBox(width: 8),
-                          Text(
-                            jobType.toUpperCase(),
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: _getJobTypeColor(jobType),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        address['street'] ?? 'Unknown Address',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        '${address['city']}, ${address['state']} ${address['zipCode']}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: _getPriorityColor(priority) == 'red' ? Colors.red[100] :
+                                 _getPriorityColor(priority) == 'yellow' ? Colors.yellow[100] :
+                                 Colors.green[100],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          priority.toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: _getPriorityColor(priority) == 'red' ? Colors.red[800] :
+                                   _getPriorityColor(priority) == 'yellow' ? Colors.yellow[800] :
+                                   Colors.green[800],
+                          ),
                         ),
                       ),
                     ],
                   ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: _getStatusColor(status) == 'green' ? Colors.green[100] :
-                               _getStatusColor(status) == 'blue' ? Colors.blue[100] :
-                               _getStatusColor(status) == 'red' ? Colors.red[100] :
-                               Colors.yellow[100],
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        status.toUpperCase(),
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: _getStatusColor(status) == 'green' ? Colors.green[800] :
-                                 _getStatusColor(status) == 'blue' ? Colors.blue[800] :
-                                 _getStatusColor(status) == 'red' ? Colors.red[800] :
-                                 Colors.yellow[800],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: _getPriorityColor(priority) == 'red' ? Colors.red[100] :
-                               _getPriorityColor(priority) == 'yellow' ? Colors.yellow[100] :
-                               Colors.green[100],
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        priority.toUpperCase(),
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: _getPriorityColor(priority) == 'red' ? Colors.red[800] :
-                                 _getPriorityColor(priority) == 'yellow' ? Colors.yellow[800] :
-                                 Colors.green[800],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+                ],
+              ),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -557,11 +641,29 @@ class _TodaysJobsScreenState extends State<TodaysJobsScreen> {
                 if (status == 'pending') ...[
                   Expanded(
                     child: ElevatedButton.icon(
-                      onPressed: () => _startJobWithLocation(job),
+                      onPressed: canAccess 
+                          ? () => _startJobWithLocation(job)
+                          : () {
+                              // Show message explaining why job cannot be started
+                              final nextJob = _getNextAvailableJob();
+                              final nextSeq = nextJob?['sequenceNumber'];
+                              final currentSeq = job['sequenceNumber'];
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    nextSeq != null && currentSeq != null
+                                        ? 'Please complete job #$nextSeq first before starting job #$currentSeq'
+                                        : 'Please complete the previous job in sequence first',
+                                  ),
+                                  backgroundColor: Colors.orange,
+                                  duration: const Duration(seconds: 3),
+                                ),
+                              );
+                            },
                       icon: const FaIcon(FontAwesomeIcons.play, size: 16),
                       label: const Text('Start Work'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue[700],
+                        backgroundColor: canAccess ? Colors.blue[700] : Colors.grey[400],
                         foregroundColor: Colors.white,
                       ),
                     ),
@@ -570,11 +672,29 @@ class _TodaysJobsScreenState extends State<TodaysJobsScreen> {
                 if (status == 'in_progress') ...[
                   Expanded(
                     child: ElevatedButton.icon(
-                      onPressed: () => _navigateToMeterReading(job),
+                      onPressed: canAccess
+                          ? () => _navigateToMeterReading(job)
+                          : () {
+                              // Show message explaining why job cannot be accessed
+                              final nextJob = _getNextAvailableJob();
+                              final nextSeq = nextJob?['sequenceNumber'];
+                              final currentSeq = job['sequenceNumber'];
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    nextSeq != null && currentSeq != null
+                                        ? 'Please complete job #$nextSeq first before continuing job #$currentSeq'
+                                        : 'Please complete the previous job in sequence first',
+                                  ),
+                                  backgroundColor: Colors.orange,
+                                  duration: const Duration(seconds: 3),
+                                ),
+                              );
+                            },
                       icon: const FaIcon(FontAwesomeIcons.clipboardCheck, size: 16),
                       label: const Text('Take Reading'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange[700],
+                        backgroundColor: canAccess ? Colors.orange[700] : Colors.grey[400],
                         foregroundColor: Colors.white,
                       ),
                     ),
@@ -582,9 +702,37 @@ class _TodaysJobsScreenState extends State<TodaysJobsScreen> {
                 ],
               ],
             ),
+            if (!canAccess && status == 'pending' && job['sequenceNumber'] != null) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.orange[50],
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: Colors.orange[200]!),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline, size: 16, color: Colors.orange),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Complete previous jobs in sequence first',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.orange[800],
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),
+    ),
     );
   }
 
@@ -702,11 +850,23 @@ class _TodaysJobsScreenState extends State<TodaysJobsScreen> {
 
   Future<void> _navigateToMeterReading(Map<String, dynamic> job) async {
     try {
-      // Check if user is within 10 meters of destination
-      Position? currentPosition = await _locationService.getCurrentLocation();
+      // Continuously check location with multiple attempts for accuracy
+      Position? currentPosition;
+      int attempts = 0;
+      const maxAttempts = 3;
+      
+      while (attempts < maxAttempts) {
+        currentPosition = await _locationService.getCurrentLocation();
+        if (currentPosition != null) break;
+        attempts++;
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+      
       if (currentPosition != null) {
-        double destLat = job['address']['latitude'] ?? 0.0;
-        double destLng = job['address']['longitude'] ?? 0.0;
+        // Try multiple sources for job coordinates
+        final jobCoords = await LocationValidationService.getJobCoordinates(job);
+        double destLat = jobCoords?['latitude'] ?? job['address']?['latitude'] ?? job['house']?['latitude'] ?? 0.0;
+        double destLng = jobCoords?['longitude'] ?? job['address']?['longitude'] ?? job['house']?['longitude'] ?? 0.0;
         
         if (destLat != 0.0 && destLng != 0.0) {
           double distanceInMeters = Geolocator.distanceBetween(
@@ -716,11 +876,11 @@ class _TodaysJobsScreenState extends State<TodaysJobsScreen> {
             destLng,
           );
 
-          if (distanceInMeters > 10.0) {
+          if (distanceInMeters > LocationValidationService.REQUIRED_RADIUS_METERS) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('You must be within 10 meters of the destination to take readings. Current distance: ${distanceInMeters.toStringAsFixed(1)}m'),
+                  content: Text('You must be within ${LocationValidationService.REQUIRED_RADIUS_METERS.toInt()} meters of the destination to take readings. Current distance: ${distanceInMeters.toStringAsFixed(1)}m. Please ensure GPS is enabled and try again.'),
                   backgroundColor: Colors.red,
                   duration: const Duration(seconds: 5),
                 ),

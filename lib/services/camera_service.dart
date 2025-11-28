@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
@@ -7,7 +6,7 @@ import 'dart:convert';
 import 'config_service.dart';
 
 class CameraService {
-  static String get _baseUrl => ConfigService.uploadUrl;
+  static Future<String> get _baseUrl async => '${await ConfigService.getBaseUrl()}/api/upload';
   
   final ImagePicker _picker = ImagePicker();
 
@@ -51,9 +50,10 @@ class CameraService {
 
   Future<String?> uploadPhoto(File imageFile, String jobId, String meterType) async {
     try {
+      final baseUrl = await _baseUrl;
       var request = http.MultipartRequest(
         'POST',
-        Uri.parse('$_baseUrl/meter-photo'),
+        Uri.parse('$baseUrl/meter-photo'),
       );
       
       request.fields['jobId'] = jobId;
