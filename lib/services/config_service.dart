@@ -23,7 +23,7 @@ class ConfigService {
             'ip': '192.168.1.99',
             'port': 3001,
             'baseUrl': 'http://192.168.1.99:3001',
-            'mobileDataUrl': 'http://192.168.1.99:3001' // Can be configured to public IP/domain
+            'mobileDataUrl': 'http://192.168.1.99:3001' // Same as backend IP
           }
         }
       };

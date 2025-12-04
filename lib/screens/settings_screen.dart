@@ -244,7 +244,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     controller: _urlController,
                     decoration: InputDecoration(
                       labelText: 'Backend URL',
-                      hintText: 'http://95.214.230.168:3001 (include :3001)',
+                      hintText: 'http://192.168.1.99:3001 (include :3001)',
                       border: const OutlineInputBorder(),
                       prefixIcon: const Icon(Icons.link),
                       suffixIcon: _urlController.text.isNotEmpty
